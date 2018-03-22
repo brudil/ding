@@ -7,6 +7,12 @@ const wss = new WebSocket.Server({ port: 8080 });
 
 let currentData = {};
 
+function noop() { }
+
+function heartbeat() {
+  this.isAlive = true;
+}
+
 wss.broadcast = function broadcast(data) {
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
@@ -16,6 +22,9 @@ wss.broadcast = function broadcast(data) {
 };
 
 wss.on('connection', function connection(ws) {
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+
   ws.send(JSON.stringify({ name: 'initial', data: currentData}));
 
   ws.on('message', function incoming(data) {
@@ -26,6 +35,15 @@ wss.on('connection', function connection(ws) {
     });
   });
 });
+
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws) {
+    if (ws.isAlive === false) return ws.terminate();
+
+    ws.isAlive = false;
+    ws.ping(noop);
+  });
+}, 30000);
 
 function parseSchools(data) {
   const newData = {};
